@@ -61,7 +61,7 @@ class TextSplitter
     }
 }
 
-$splitter = new TextSplitter(512, 128, [" ", "。"]);
+$splitter = new TextSplitter(512, 128, ["\n", ' ', ',', '.', '，', '。']);
 
 $result = $splitter->splitText('./input.txt');
 
