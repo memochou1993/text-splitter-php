@@ -13,36 +13,39 @@ class TextSplitter
         $this->separators = $separators;
     }
 
-    public function splitText($text)
+    public function splitText($filePath)
     {
-        return $this->split($text);
-    }
+        $chunks = [];
+        $stream = fopen($filePath, 'r');
 
-    private function split($text)
-    {
-        if (mb_strlen($text) <= $this->chunkSize) {
-            return [$text];
+        if ($stream) {
+            $currentChunk = '';
+            $remainingText = '';
+
+            while (!feof($stream)) {
+                $buffer = fread($stream, $this->chunkSize + $this->chunkOverlap);
+                $currentChunk .= $buffer;
+
+                $lastSeparatorPos = $this->findLastSeparator($currentChunk);
+
+                $remainingText = '';
+                if ($lastSeparatorPos !== false && $lastSeparatorPos >= $this->chunkSize - $this->chunkOverlap) {
+                    $remainingText = mb_substr($currentChunk, $lastSeparatorPos);
+                    $currentChunk = mb_substr($currentChunk, 0, $this->chunkSize + $this->chunkOverlap);
+                }
+
+                $chunks[] = trim($currentChunk);
+                $currentChunk = $remainingText;
+            }
+
+            fclose($stream);
+
+            if ($remainingText) {
+                $chunks[] = trim($remainingText);
+            }
         }
 
-        $currentChunk = mb_substr($text, 0, $this->chunkSize);
-
-        $lastSeparatorPos = $this->findLastSeparator($currentChunk);
-
-        $overlap = $this->chunkOverlap;
-        if ($lastSeparatorPos !== false && $lastSeparatorPos >= $this->chunkSize - $overlap) {
-            $overlap = $this->chunkSize - $lastSeparatorPos;
-        }
-
-        $currentChunk = mb_substr($text, 0, $this->chunkSize + $overlap);
-
-        $remainingText = mb_substr($text, $this->chunkSize - $overlap);
-
-        $remainingChunks = $this->split($remainingText);
-
-        $result = [$currentChunk];
-        $result = array_merge($result, $remainingChunks);
-
-        return $result;
+        return $chunks;
     }
 
     private function findLastSeparator($text)
@@ -58,8 +61,10 @@ class TextSplitter
     }
 }
 
-$splitter = new TextSplitter(20, 10, [" ", "。"]);
-$text = file_get_contents('./content.txt');
-$result = $splitter->splitText($text);
+$splitter = new TextSplitter(512, 128, [" ", "。"]);
 
-print_r($result);
+$result = $splitter->splitText('./input.txt');
+
+$data = json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE);
+
+file_put_contents('./output.txt', $data);
